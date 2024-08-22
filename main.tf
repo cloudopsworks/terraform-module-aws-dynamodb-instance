@@ -5,7 +5,7 @@
 #
 
 locals {
-  table_name = var.name != "" ? var.name : "${var.name_prefix}-${local.system_name}"
+  table_name = replace(var.name != "" ? var.name : "${var.name_prefix}-${local.system_name}", "-", "_")
 }
 
 module "this" {
