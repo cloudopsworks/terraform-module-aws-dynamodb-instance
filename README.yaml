@@ -1,4 +1,4 @@
-name: Terraform Transit Gateway Module
+name: Terraform AWS DynamoDB Module
 #logo: logo/logo.jpg
 
 license: "APACHE2"
@@ -8,10 +8,25 @@ copyrights:
     url: "https://cloudops.works"
     year: "2024"
 
-github_repo: cloudopsworks/terraform-module-aws-vpc-setup
+github_repo: cloudopsworks/terraform-module-aws-dynamodb-instance
 
 description: |-
-  VPC Module for setting up transit gateway with ResourceAccessMananger support.
+  This Terraform module provisions an AWS DynamoDB table with various configurable options. 
+  It uses the `terraform-aws-modules/dynamodb-table/aws` module as its source and allows for 
+  extensive customization of the DynamoDB table's attributes, capacity, encryption, and more.
+
+  Key features include:
+  - Customizable table name with support for prefixes and suffixes.
+  - Configurable attributes, including hash and range keys.
+  - Support for autoscaling, billing modes, and capacity settings.
+  - Optional deletion protection and point-in-time recovery.
+  - Server-side encryption with optional KMS key.
+  - Stream and TTL settings.
+  - Support for replica regions.
+  - Tagging support for resource management.
+
+  This module is designed to simplify the creation and management of DynamoDB tables in AWS, 
+  providing a robust and flexible solution for various use cases. with ResourceAccessMananger support.
 
 # Introduction to the project
 #introduction: |-
