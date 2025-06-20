@@ -61,10 +61,246 @@ We have [*lots of terraform modules*][terraform_modules] that are Open Source an
 
 
 
+## Introduction
+
+The Terraform AWS DynamoDB Module provides a streamlined way to create and manage DynamoDB tables in AWS. 
+Built on top of the official AWS provider and terraform-aws-modules/dynamodb-table/aws module, it offers:
+
+- Simplified table creation with sensible defaults
+- Comprehensive configuration options through YAML structure
+- Built-in support for autoscaling, encryption, and backup features
+- Integration with AWS Resource Access Manager (RAM)
+- Terragrunt-compatible design for multi-environment deployments
+
+## Usage
 
 
+**IMPORTANT:** The `master` branch is used in `source` just as an example. In your code, do not pin to `master` because there may be breaking changes between releases.
+Instead pin to the release tag (e.g. `?ref=vX.Y.Z`) of one of our [latest releases](https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance/releases).
 
 
+### Module Variables
+
+- `name_prefix` (string): Prefix for the DynamoDB table name
+- `name` (string): Explicit table name (overrides name_prefix if set)
+- `db` (map): Main configuration object for the DynamoDB table
+
+### Complete Configuration Example
+
+```yaml
+name_prefix: "myapp"
+db:
+  # Table attributes definition (required)
+  attributes:
+    - name: "id"        # Primary key attribute
+      type: "S"         # S = String, N = Number, B = Binary
+    - name: "sort_key"
+      type: "N"
+
+  # Key schema (required)
+  hash_key: "id"        # Partition key
+  range_key: "sort_key" # Sort key (optional)
+
+  # Autoscaling configuration (optional)
+  autoscaling:
+    enabled: true
+    defaults:
+      min_capacity: 1
+      max_capacity: 10
+    read:
+      target_value: 70
+    write:
+      target_value: 70
+
+  # Capacity settings (optional)
+  capacity:
+    billing_mode: "PROVISIONED"  # or "PAY_PER_REQUEST"
+    read: 5                      # Only for PROVISIONED
+    write: 5                     # Only for PROVISIONED
+
+  # Security settings (optional)
+  deletion_protection: true
+  encryption:
+    enabled: true
+    kms_key_arn: "arn:aws:kms:region:account:key/id"
+
+  # Backup and recovery (optional)
+  recovery:
+    enabled: true
+    period_in_days: 35
+
+  # Multi-region settings (optional)
+  replicas:
+    - region_name: "us-west-2"
+      propagate_tags: true
+      point_in_time_recovery: true
+
+  # Streaming configuration (optional)
+  stream:
+    enabled: true
+    view_type: "NEW_AND_OLD_IMAGES"
+
+  # Storage class (optional)
+  table_class: "STANDARD"
+
+  # Time-To-Live settings (optional)
+  ttl:
+    enabled: true
+    attribute_name: "expires_at"
+
+  # Secondary indexes (optional)
+  global_secondary_indexes:
+    - name: "gsi1"
+      hash_key: "gsi_key"
+      projection_type: "ALL"
+      read_capacity: 5
+      write_capacity: 5
+
+  local_secondary_indexes:
+    - name: "lsi1"
+      range_key: "lsi_key"
+      projection_type: "KEYS_ONLY"
+
+  # Import configuration (optional)
+  import_table:
+    input_format: "CSV"
+    bucket: "my-import-bucket"
+    key_prefix: "data/"
+```
+
+### Terraform Usage
+
+```hcl
+module "dynamodb_table" {
+  source = "cloudopsworks/terraform-module-aws-dynamodb-instance"
+
+  name_prefix = "myapp"
+  db = {
+    attributes = [
+      {
+        name = "id"
+        type = "S"
+      }
+    ]
+    hash_key = "id"
+    encryption = {
+      enabled = true
+    }
+  }
+}
+```
+
+### Terragrunt Usage
+
+```hcl
+# terragrunt.hcl
+include "root" {
+  path = find_in_parent_folders()
+}
+
+terraform {
+  source = "cloudopsworks/terraform-module-aws-dynamodb-instance//?ref=v1.0.0"
+}
+
+inputs = {
+  name_prefix = "myapp"
+  db = {
+    attributes = [
+      {
+        name = "id"
+        type = "S"
+      }
+    ]
+    hash_key = "id"
+    encryption = {
+      enabled = true
+    }
+  }
+}
+```
+
+## Quick Start
+
+1. Add the module to your Terraform configuration:
+   ```hcl
+   module "dynamodb" {
+     source = "cloudopsworks/terraform-module-aws-dynamodb-instance"
+     version = "1.0.0"
+
+     name_prefix = "myapp"
+     db = {
+       attributes = [
+         {
+           name = "id"
+           type = "S"
+         }
+       ]
+       hash_key = "id"
+     }
+   }
+   ```
+
+2. Initialize Terraform:
+   ```bash
+   terraform init
+   ```
+
+3. Review the plan:
+   ```bash
+   terraform plan
+   ```
+
+4. Apply the configuration:
+   ```bash
+   terraform apply
+   ```
+
+
+## Examples
+
+### Basic Table
+```hcl
+db = {
+  attributes = [
+    {
+      name = "user_id"
+      type = "S"
+    }
+  ]
+  hash_key = "user_id"
+}
+```
+
+### Table with GSI and Autoscaling
+```hcl
+db = {
+  attributes = [
+    {
+      name = "user_id"
+      type = "S"
+    },
+    {
+      name = "email"
+      type = "S"
+    }
+  ]
+  hash_key = "user_id"
+  global_secondary_indexes = [
+    {
+      name = "email-index"
+      hash_key = "email"
+      projection_type = "ALL"
+    }
+  ]
+  autoscaling = {
+    enabled = true
+    read = {
+      min_capacity = 1
+      max_capacity = 10
+    }
+  }
+}
+```
 
 
 
@@ -84,19 +320,20 @@ Available targets:
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | n/a |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
 
 ## Modules
 
 | Name | Source | Version |
 |------|--------|---------|
 | <a name="module_tags"></a> [tags](#module\_tags) | cloudopsworks/tags/local | 1.0.9 |
-| <a name="module_this"></a> [this](#module\_this) | terraform-aws-modules/dynamodb-table/aws | 4.0.1 |
+| <a name="module_this"></a> [this](#module\_this) | terraform-aws-modules/dynamodb-table/aws | ~> 4.0 |
 
 ## Resources
 
@@ -118,7 +355,10 @@ Available targets:
 
 ## Outputs
 
-No outputs.
+| Name | Description |
+|------|-------------|
+| <a name="output_dynamodb_table_arn"></a> [dynamodb\_table\_arn](#output\_dynamodb\_table\_arn) | n/a |
+| <a name="output_dynamodb_table_id"></a> [dynamodb\_table\_id](#output\_dynamodb\_table\_id) | n/a |
 
 
 
