@@ -19,7 +19,7 @@ module "this" {
   attributes                            = try(var.db.attributes, [])
   autoscaling_defaults                  = try(var.db.autoscaling_defaults, var.db.autoscaling.defaults, {})
   autoscaling_enabled                   = try(var.db.autoscaling_enabled, var.db.autoscaling.enabled, false)
-  autoscaling_indexes                   = try(var.db.autoscaling_indexes, var.db.autoscaling.indexes, false)
+  autoscaling_indexes                   = try(var.db.autoscaling_indexes, var.db.autoscaling.indexes, {})
   autoscaling_read                      = try(var.db.autoscaling.read, {})
   autoscaling_write                     = try(var.db.autoscaling.write, {})
   billing_mode                          = try(var.db.capacity.billing_mode, "PAY_PER_REQUEST")
