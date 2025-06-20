@@ -41,6 +41,6 @@ module "this" {
   global_secondary_indexes              = try(var.db.global_secondary_indexes, [])
   ignore_changes_global_secondary_index = try(var.db.ignore_changes_global_secondary_index, false)
   local_secondary_indexes               = try(var.db.local_secondary_indexes, [])
-  import_table                          = try(var.db.import_table, false)
+  import_table                          = try(var.db.import_table, {})
   tags                                  = local.all_tags
 }
