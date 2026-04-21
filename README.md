@@ -8,13 +8,13 @@
   -->
 [![README Header][readme_header_img]][readme_header_link]
 
-[![cloudopsworks][logo]](https://cloudops.works/)
+[![cloudopsworks][logo]](https://cloudopsworks.co/)
 
-# Terraform AWS DynamoDB Module
+# Terraform AWS DynamoDB Module [![Latest Release](https://img.shields.io/github/release/cloudopsworks/terraform-module-aws-dynamodb-instance.svg?style=for-the-badge)](https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance/releases/latest) [![Last Updated](https://img.shields.io/github/last-commit/cloudopsworks/terraform-module-aws-dynamodb-instance.svg?style=for-the-badge)](https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance/commits)
 
 
-This Terraform module provisions an AWS DynamoDB table with various configurable options. 
-It uses the `terraform-aws-modules/dynamodb-table/aws` module as its source and allows for 
+This Terraform module provisions an AWS DynamoDB table with various configurable options.
+It uses the `terraform-aws-modules/dynamodb-table/aws` module as its source and allows for
 extensive customization of the DynamoDB table's attributes, capacity, encryption, and more.
 
 Key features include:
@@ -24,26 +24,23 @@ Key features include:
 - Optional deletion protection and point-in-time recovery.
 - Server-side encryption with optional KMS key.
 - Stream and TTL settings.
-- Support for replica regions.
+- Support for replica regions (global tables).
+- Global and local secondary index management.
+- S3 data import support.
 - Tagging support for resource management.
 
-This module is designed to simplify the creation and management of DynamoDB tables in AWS, 
-providing a robust and flexible solution for various use cases. with ResourceAccessMananger support.
+This module is designed to simplify the creation and management of DynamoDB tables in AWS,
+providing a robust and flexible solution for various use cases.
 
 
 ---
 
 This project is part of our comprehensive approach towards DevOps Acceleration. 
 [<img align="right" title="Share via Email" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/ios-mail.svg"/>][share_email]
-[<img align="right" title="Share on Google+" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-googleplus.svg" />][share_googleplus]
 [<img align="right" title="Share on Facebook" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-facebook.svg" />][share_facebook]
 [<img align="right" title="Share on Reddit" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-reddit.svg" />][share_reddit]
 [<img align="right" title="Share on LinkedIn" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-linkedin.svg" />][share_linkedin]
-[<img align="right" title="Share on Twitter" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-twitter.svg" />][share_twitter]
-
-
-[![Terraform Open Source Modules](https://docs.cloudops.works/images/terraform-open-source-modules.svg)][terraform_modules]
-
+[<img align="right" title="Share on X" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-twitter.svg" />][share_twitter]
 
 
 It's 100% Open Source and licensed under the [APACHE2](LICENSE).
@@ -63,14 +60,15 @@ We have [*lots of terraform modules*][terraform_modules] that are Open Source an
 
 ## Introduction
 
-The Terraform AWS DynamoDB Module provides a streamlined way to create and manage DynamoDB tables in AWS. 
-Built on top of the official AWS provider and terraform-aws-modules/dynamodb-table/aws module, it offers:
+The Terraform AWS DynamoDB Module provides a streamlined way to create and manage DynamoDB
+tables in AWS. Built on top of the official AWS provider (`hashicorp/aws ~> 6.35`) and the
+community `terraform-aws-modules/dynamodb-table/aws` module, it offers:
 
 - Simplified table creation with sensible defaults
-- Comprehensive configuration options through YAML structure
-- Built-in support for autoscaling, encryption, and backup features
-- Integration with AWS Resource Access Manager (RAM)
-- Terragrunt-compatible design for multi-environment deployments
+- Comprehensive configuration through a single structured `db` variable (YAML-friendly)
+- Built-in support for autoscaling, encryption, backup, streams, and TTL
+- Global tables via replica region configuration
+- Terragrunt-compatible design for multi-environment deployments using the CloudOps Works hierarchy
 
 ## Usage
 
@@ -79,298 +77,303 @@ Built on top of the official AWS provider and terraform-aws-modules/dynamodb-tab
 Instead pin to the release tag (e.g. `?ref=vX.Y.Z`) of one of our [latest releases](https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance/releases).
 
 
-### Module Variables
+### Terragrunt Scaffolding Workflow
 
-- `name_prefix` (string): Prefix for the DynamoDB table name
-- `name` (string): Explicit table name (overrides name_prefix if set)
-- `db` (map): Main configuration object for the DynamoDB table
+The recommended way to deploy this module is via Terragrunt scaffold, which generates
+`terragrunt.hcl`, `inputs.yaml`, and `local-tags.json` from the module's boilerplate.
 
-### Complete Configuration Example
+```sh
+# 1. Create and enter the target deployment directory
+mkdir -p <environment>/<region>/<spoke>/dynamodb-instance
+cd <environment>/<region>/<spoke>/dynamodb-instance
+
+# 2. Scaffold the module
+terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-dynamodb-instance
+
+# 3. Edit inputs.yaml with deployment-specific values
+vi inputs.yaml
+
+# 4. Apply
+terragrunt apply
+```
+
+### Generated `inputs.yaml`
+
+After scaffolding, edit `inputs.yaml` with your table configuration:
 
 ```yaml
+# name_prefix: "myapp"  # (Optional) Prefix for the DynamoDB table name. Default: ""
+#                        # Ignored when `name` is set.
 name_prefix: "myapp"
+
+# name: ""  # (Optional) Explicit table name. Overrides name_prefix. Default: ""
+name: ""
+
+# db:  # (Required) Main DynamoDB table configuration.
 db:
-  # Table attributes definition (required)
+  # attributes:  # (Required) Attribute definitions for the table.
+  #   - name: "id"    # (Required) Attribute name.
+  #     type: "S"     # (Required) "S" (String), "N" (Number), "B" (Binary).
   attributes:
-    - name: "id"        # Primary key attribute
-      type: "S"         # S = String, N = Number, B = Binary
-    - name: "sort_key"
-      type: "N"
+    - name: "id"
+      type: "S"
 
-  # Key schema (required)
-  hash_key: "id"        # Partition key
-  range_key: "sort_key" # Sort key (optional)
+  # hash_key: "id"  # (Required) Partition key attribute name.
+  hash_key: "id"
 
-  # Autoscaling configuration (optional)
+  # range_key: ""  # (Optional) Sort key attribute name. Default: null
+  range_key: ""
+
+  # autoscaling:  # (Optional) Autoscaling configuration.
   autoscaling:
-    enabled: true
+    enabled: false             # (Optional) Enable autoscaling. Default: false
     defaults:
-      min_capacity: 1
-      max_capacity: 10
+      min_capacity: 1          # (Optional) Minimum capacity. Default: 1
+      max_capacity: 10         # (Optional) Maximum capacity. Default: 10
+    indexes: {}                # (Optional) Per-index overrides. Default: {}
     read:
-      target_value: 70
+      target_value: 70         # (Optional) Read target utilization %. Default: 70
     write:
-      target_value: 70
+      target_value: 70         # (Optional) Write target utilization %. Default: 70
 
-  # Capacity settings (optional)
+  # capacity:  # (Optional) Table capacity settings.
   capacity:
-    billing_mode: "PROVISIONED"  # or "PAY_PER_REQUEST"
-    read: 5                      # Only for PROVISIONED
-    write: 5                     # Only for PROVISIONED
+    billing_mode: "PAY_PER_REQUEST"  # (Optional) "PAY_PER_REQUEST" or "PROVISIONED". Default: "PAY_PER_REQUEST"
+    read: 0                          # (Optional) Provisioned read units. Default: 0
+    write: 0                         # (Optional) Provisioned write units. Default: 0
 
-  # Security settings (optional)
-  deletion_protection: true
+  deletion_protection: false   # (Optional) Enable deletion protection. Default: false
+
+  # encryption:  # (Optional) Server-side encryption.
   encryption:
-    enabled: true
-    kms_key_arn: "arn:aws:kms:region:account:key/id"
+    enabled: false             # (Optional) Enable SSE. Default: false
+    kms_key_arn: ""            # (Optional) KMS key ARN. Default: null (AWS-managed key)
 
-  # Backup and recovery (optional)
+  # recovery:  # (Optional) Point-in-time recovery.
   recovery:
-    enabled: true
-    period_in_days: 35
+    enabled: false             # (Optional) Enable PITR. Default: false
+    period_in_days: -1         # (Optional) Recovery window in days. -1 = provider default.
 
-  # Multi-region settings (optional)
-  replicas:
-    - region_name: "us-west-2"
-      propagate_tags: true
-      point_in_time_recovery: true
+  replicas: []                 # (Optional) Replica regions for global tables. Default: []
+  # replicas:
+  #   - region_name: "us-west-2"
+  #     propagate_tags: false
+  #     point_in_time_recovery: false
+  #     kms_key_arn: ""
 
-  # Streaming configuration (optional)
+  # stream:  # (Optional) DynamoDB Streams configuration.
   stream:
-    enabled: true
-    view_type: "NEW_AND_OLD_IMAGES"
+    enabled: false             # (Optional) Enable streams. Default: false
+    view_type: "NEW_AND_OLD_IMAGES"  # (Optional) "NEW_IMAGE", "OLD_IMAGE", "NEW_AND_OLD_IMAGES", "KEYS_ONLY"
 
-  # Storage class (optional)
-  table_class: "STANDARD"
+  table_class: "STANDARD"      # (Optional) "STANDARD" or "STANDARD_INFREQUENT_ACCESS". Default: null
 
-  # Time-To-Live settings (optional)
+  # ttl:  # (Optional) Time-To-Live configuration.
   ttl:
-    enabled: true
-    attribute_name: "expires_at"
+    enabled: false             # (Optional) Enable TTL. Default: false
+    attribute_name: "expires_at"  # (Optional) TTL attribute (epoch seconds). Default: null
 
-  # Secondary indexes (optional)
-  global_secondary_indexes:
-    - name: "gsi1"
-      hash_key: "gsi_key"
-      projection_type: "ALL"
-      read_capacity: 5
-      write_capacity: 5
+  global_secondary_indexes: [] # (Optional) GSI definitions. Default: []
+  # global_secondary_indexes:
+  #   - name: "gsi_name"
+  #     hash_key: "gsi_hash_key"
+  #     range_key: ""
+  #     read_capacity: 0
+  #     write_capacity: 0
+  #     projection_type: "ALL"   # "ALL", "KEYS_ONLY", "INCLUDE"
+  #     non_key_attributes: []
 
-  local_secondary_indexes:
-    - name: "lsi1"
-      range_key: "lsi_key"
-      projection_type: "KEYS_ONLY"
+  ignore_changes_global_secondary_index: false  # (Optional) Ignore GSI lifecycle changes. Default: false
 
-  # Import configuration (optional)
-  import_table:
-    input_format: "CSV"
-    bucket: "my-import-bucket"
-    key_prefix: "data/"
+  local_secondary_indexes: []  # (Optional) LSI definitions. Default: []
+  # local_secondary_indexes:
+  #   - name: "lsi_name"
+  #     range_key: "lsi_range_key"
+  #     projection_type: "ALL"
+  #     non_key_attributes: []
+
+  # import_table:  # (Optional) S3 data import configuration.
+  #   input_format: "CSV"              # (Required) "CSV", "DYNAMODB_JSON", "ION"
+  #   input_compression_type: "NONE"  # (Optional) "GZIP", "BZIP2", "ZSTD", "NONE"
+  #   bucket: "my-import-bucket"      # (Required) S3 bucket name
+  #   key_prefix: ""                  # (Optional) S3 key prefix
+  #   input_format_options:
+  #     csv:
+  #       delimiter: ","
+  #       header_list: []
 ```
 
-### Terraform Usage
+### Generated `terragrunt.hcl`
+
+The scaffold generates the following `terragrunt.hcl` (shown for `kms_enabled: false`):
 
 ```hcl
-module "dynamodb_table" {
-  source = "cloudopsworks/terraform-module-aws-dynamodb-instance"
+locals {
+  local_vars  = yamldecode(file("./inputs.yaml"))
+  spoke_vars  = yamldecode(file(find_in_parent_folders("spoke-inputs.yaml")))
+  region_vars = yamldecode(file(find_in_parent_folders("region-inputs.yaml")))
+  env_vars    = yamldecode(file(find_in_parent_folders("env-inputs.yaml")))
+  global_vars = yamldecode(file(find_in_parent_folders("global-inputs.yaml")))
 
-  name_prefix = "myapp"
-  db = {
-    attributes = [
-      {
-        name = "id"
-        type = "S"
-      }
-    ]
-    hash_key = "id"
-    encryption = {
-      enabled = true
-    }
-  }
+  local_tags  = jsondecode(file("./local-tags.json"))
+  spoke_tags  = jsondecode(file(find_in_parent_folders("spoke-tags.json")))
+  region_tags = jsondecode(file(find_in_parent_folders("region-tags.json")))
+  env_tags    = jsondecode(file(find_in_parent_folders("env-tags.json")))
+  global_tags = jsondecode(file(find_in_parent_folders("global-tags.json")))
+
+  tags = merge(
+    local.global_tags,
+    local.env_tags,
+    local.region_tags,
+    local.spoke_tags,
+    local.local_tags
+  )
 }
-```
 
-### Terragrunt Usage
-
-```hcl
-# terragrunt.hcl
 include "root" {
   path = find_in_parent_folders()
 }
 
 terraform {
-  source = "cloudopsworks/terraform-module-aws-dynamodb-instance//?ref=v1.0.0"
+  source = "github.com/cloudopsworks/terraform-module-aws-dynamodb-instance//?ref=<version>"
 }
 
 inputs = {
-  name_prefix = "myapp"
-  db = {
-    attributes = [
-      {
-        name = "id"
-        type = "S"
-      }
-    ]
-    hash_key = "id"
-    encryption = {
-      enabled = true
-    }
-  }
+  is_hub     = false
+  org        = local.env_vars.org
+  spoke_def  = local.spoke_vars.spoke
+  name_prefix = local.local_vars.name_prefix
+  name        = try(local.local_vars.name, "")
+  db          = try(local.local_vars.db, {})
+  extra_tags  = local.tags
 }
 ```
 
+### Module Inputs Summary
+
+| Variable | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name_prefix` | `string` | Optional | Prefix for the DynamoDB table name |
+| `name` | `string` | Optional | Explicit table name (overrides `name_prefix`) |
+| `db` | `any` | Optional | Full DynamoDB table configuration object |
+| `db.attributes` | `list` | Required | Attribute definitions (name + type) |
+| `db.hash_key` | `string` | Required | Partition key attribute name |
+| `db.range_key` | `string` | Optional | Sort key attribute name |
+| `db.autoscaling` | `object` | Optional | Autoscaling configuration |
+| `db.capacity` | `object` | Optional | Billing mode and capacity units |
+| `db.deletion_protection` | `bool` | Optional | Deletion protection toggle |
+| `db.encryption` | `object` | Optional | SSE with optional KMS key |
+| `db.recovery` | `object` | Optional | Point-in-time recovery settings |
+| `db.replicas` | `list` | Optional | Replica regions for global tables |
+| `db.stream` | `object` | Optional | DynamoDB Streams configuration |
+| `db.table_class` | `string` | Optional | Storage class (`STANDARD` / `STANDARD_INFREQUENT_ACCESS`) |
+| `db.ttl` | `object` | Optional | Time-To-Live configuration |
+| `db.global_secondary_indexes` | `list` | Optional | GSI definitions |
+| `db.local_secondary_indexes` | `list` | Optional | LSI definitions |
+| `db.import_table` | `object` | Optional | S3 data import configuration |
+
 ## Quick Start
 
-1. Add the module to your Terraform configuration:
-   ```hcl
-   module "dynamodb" {
-     source = "cloudopsworks/terraform-module-aws-dynamodb-instance"
-     version = "1.0.0"
-
-     name_prefix = "myapp"
-     db = {
-       attributes = [
-         {
-           name = "id"
-           type = "S"
-         }
-       ]
-       hash_key = "id"
-     }
-   }
+1. Create and enter the target deployment directory:
+   ```bash
+   mkdir -p production/us-east-1/001/dynamodb-instance
+   cd production/us-east-1/001/dynamodb-instance
    ```
 
-2. Initialize Terraform:
+2. Scaffold the module:
    ```bash
-   terraform init
+   terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-dynamodb-instance
    ```
 
-3. Review the plan:
+3. Edit `inputs.yaml` with your configuration:
    ```bash
-   terraform plan
+   vi inputs.yaml
    ```
 
-4. Apply the configuration:
+4. Initialize and apply:
    ```bash
-   terraform apply
+   terragrunt init
+   terragrunt plan
+   terragrunt apply
    ```
 
 
 ## Examples
 
-### Basic Table
-```hcl
-db = {
-  attributes = [
-    {
-      name = "user_id"
-      type = "S"
-    }
-  ]
-  hash_key = "user_id"
-}
+### Basic Table (pay-per-request, single hash key)
+
+```yaml
+name_prefix: "myapp"
+db:
+  attributes:
+    - name: "user_id"
+      type: "S"
+  hash_key: "user_id"
+  capacity:
+    billing_mode: "PAY_PER_REQUEST"
 ```
 
 ### Table with GSI and Autoscaling
-```hcl
-db = {
-  attributes = [
-    {
-      name = "user_id"
-      type = "S"
-    },
-    {
-      name = "email"
-      type = "S"
-    }
-  ]
-  hash_key = "user_id"
-  global_secondary_indexes = [
-    {
-      name = "email-index"
-      hash_key = "email"
-      projection_type = "ALL"
-    }
-  ]
-  autoscaling = {
-    enabled = true
-    read = {
-      min_capacity = 1
-      max_capacity = 10
-    }
-  }
-}
-```
 
-### Full YAML Configuration Reference
 ```yaml
+name_prefix: "myapp"
 db:
   attributes:
-    - name: "attribute_name1"
-      type: "S" # "S" for String, "N" for Number, "B" for Binary
-    - name: "attribute_name2"
+    - name: "user_id"
       type: "S"
-  hash_key: "hash_key_name" # Required
-  range_key: "range_key_name" # Optional
+    - name: "email"
+      type: "S"
+  hash_key: "user_id"
+  capacity:
+    billing_mode: "PROVISIONED"
+    read: 5
+    write: 5
+  global_secondary_indexes:
+    - name: "email-index"
+      hash_key: "email"
+      projection_type: "ALL"
+      read_capacity: 5
+      write_capacity: 5
   autoscaling:
     enabled: true
     defaults:
       min_capacity: 1
-      max_capacity: 10
-    indexes: {}
+      max_capacity: 50
     read:
       target_value: 70
     write:
       target_value: 70
-  capacity:
-    billing_mode: "PAY_PER_REQUEST"
-    write: 0
-    read: 0
-  deletion_protection: false
+```
+
+### Encrypted Global Table with Streams
+
+```yaml
+name_prefix: "myapp"
+db:
+  attributes:
+    - name: "pk"
+      type: "S"
+    - name: "sk"
+      type: "S"
+  hash_key: "pk"
+  range_key: "sk"
+  deletion_protection: true
   encryption:
-    enabled: false
-    kms_key_arn: "arn:aws:kms:region:account-id:key/key-id"
+    enabled: true
+    kms_key_arn: "arn:aws:kms:us-east-1:123456789012:key/mrk-abc123"
   recovery:
-    enabled: false
-    period_in_days: -1
+    enabled: true
+    period_in_days: 35
+  stream:
+    enabled: true
+    view_type: "NEW_AND_OLD_IMAGES"
   replicas:
     - region_name: "us-west-2"
-      propagate_tags: false
-      point_in_time_recovery: false
-      kms_key_arn: null
-  stream:
-    enabled: false
-    view_type: "NEW_AND_OLD_IMAGES"
-  table_class: "STANDARD"
+      propagate_tags: true
+      point_in_time_recovery: true
   ttl:
-    enabled: false
-    attribute_name: "ttl"
-  global_secondary_indexes:
-    - name: "gsi_name"
-      hash_key: "gsi_hash_key"
-      range_key: "gsi_range_key"
-      read_capacity: 0
-      write_capacity: 0
-      projection_type: "ALL"
-      non_key_attributes:
-        - "attribute_name1"
-        - "attribute_name2"
-  ignore_changes_global_secondary_index: false
-  local_secondary_indexes:
-    - name: "lsi_name"
-      range_key: "lsi_range_key"
-      projection_type: "ALL"
-      non_key_attributes:
-        - "attribute_name1"
-  import_table:
-    input_format: "CSV"
-    input_compression_type: "NONE"
-    bucket: "s3-bucket-name"
-    key_prefix: "path/to/data"
-    input_format_options:
-      csv:
-        delimiter: ","
-        header_list: []
+    enabled: true
+    attribute_name: "expires_at"
 ```
 
 
@@ -382,6 +385,7 @@ Available targets:
   help                                Help screen
   help/all                            Display help for all targets
   help/short                          This help short screen
+  init/%                              Initialize the project for a specific cloud provider: %S
   lint                                Lint terraform/opentofu code
   tag                                 Tag the current version
 
@@ -391,13 +395,13 @@ Available targets:
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.35 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.41.0 |
 
 ## Modules
 
@@ -417,19 +421,19 @@ Available targets:
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_db"></a> [db](#input\_db) | DynamoDB configuration entry | `any` | `{}` | no |
-| <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | n/a | `map(string)` | `{}` | no |
-| <a name="input_is_hub"></a> [is\_hub](#input\_is\_hub) | Establish this is a HUB or spoke configuration | `bool` | `false` | no |
+| <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to the resources | `map(string)` | `{}` | no |
+| <a name="input_is_hub"></a> [is\_hub](#input\_is\_hub) | Is this a hub or spoke configuration? | `bool` | `false` | no |
 | <a name="input_name"></a> [name](#input\_name) | Name to use for all resources | `string` | `""` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix to use for all resources | `string` | `""` | no |
-| <a name="input_org"></a> [org](#input\_org) | n/a | <pre>object({<br/>    organization_name = string<br/>    organization_unit = string<br/>    environment_type  = string<br/>    environment_name  = string<br/>  })</pre> | n/a | yes |
-| <a name="input_spoke_def"></a> [spoke\_def](#input\_spoke\_def) | n/a | `string` | `"001"` | no |
+| <a name="input_org"></a> [org](#input\_org) | Organization details | <pre>object({<br/>    organization_name = string<br/>    organization_unit = string<br/>    environment_type  = string<br/>    environment_name  = string<br/>  })</pre> | n/a | yes |
+| <a name="input_spoke_def"></a> [spoke\_def](#input\_spoke\_def) | Spoke ID Number, must be a 3 digit number | `string` | `"001"` | no |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| <a name="output_dynamodb_table_arn"></a> [dynamodb\_table\_arn](#output\_dynamodb\_table\_arn) | n/a |
-| <a name="output_dynamodb_table_id"></a> [dynamodb\_table\_id](#output\_dynamodb\_table\_id) | n/a |
+| <a name="output_dynamodb_table_arn"></a> [dynamodb\_table\_arn](#output\_dynamodb\_table\_arn) | The ARN of the DynamoDB table |
+| <a name="output_dynamodb_table_id"></a> [dynamodb\_table\_id](#output\_dynamodb\_table\_id) | The name/ID of the DynamoDB table |
 
 
 
@@ -439,10 +443,9 @@ Available targets:
 
 File a GitHub [issue](https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance/issues), send us an [email][email] or join our [Slack Community][slack].
 
-[![README Commercial Support][readme_commercial_support_img]][readme_commercial_support_link]
 
 ## DevOps Tools
-
+[]()
 ## Slack Community
 
 
@@ -463,7 +466,7 @@ Please use the [issue tracker](https://github.com/cloudopsworks/terraform-module
 
 ## Copyrights
 
-Copyright © 2024-2025 [Cloud Ops Works LLC](https://cloudops.works)
+Copyright © 2021-2026 [Cloud Ops Works LLC](https://cloudops.works)
 
 
 
@@ -520,32 +523,31 @@ This project is maintained by [Cloud Ops Works LLC][website].
 [![README Footer][readme_footer_img]][readme_footer_link]
 [![Beacon][beacon]][website]
 
-  [logo]: https://cloudops.works/logo-300x69.svg
-  [docs]: https://cowk.io/docs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=docs
-  [website]: https://cowk.io/homepage?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=website
-  [github]: https://cowk.io/github?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=github
-  [jobs]: https://cowk.io/jobs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=jobs
-  [hire]: https://cowk.io/hire?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=hire
-  [slack]: https://cowk.io/slack?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=slack
-  [linkedin]: https://cowk.io/linkedin?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=linkedin
-  [twitter]: https://cowk.io/twitter?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=twitter
-  [testimonial]: https://cowk.io/leave-testimonial?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=testimonial
-  [office_hours]: https://cloudops.works/office-hours?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=office_hours
-  [newsletter]: https://cowk.io/newsletter?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=newsletter
-  [email]: https://cowk.io/email?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=email
-  [commercial_support]: https://cowk.io/commercial-support?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=commercial_support
-  [we_love_open_source]: https://cowk.io/we-love-open-source?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=we_love_open_source
-  [terraform_modules]: https://cowk.io/terraform-modules?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=terraform_modules
-  [readme_header_img]: https://cloudops.works/readme/header/img
-  [readme_header_link]: https://cloudops.works/readme/header/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=readme_header_link
-  [readme_footer_img]: https://cloudops.works/readme/footer/img
-  [readme_footer_link]: https://cloudops.works/readme/footer/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=readme_footer_link
-  [readme_commercial_support_img]: https://cloudops.works/readme/commercial-support/img
-  [readme_commercial_support_link]: https://cloudops.works/readme/commercial-support/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=readme_commercial_support_link
-  [share_twitter]: https://twitter.com/intent/tweet/?text=Terraform+AWS+DynamoDB+Module&url=https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance
+  [logo]: https://cloudopsworks.co/images/main-logo.png
+  [docs]: https://cloudopsworks.co/resources?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=docs
+  [website]: https://cloudopsworks.co?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=website
+  [github]: https://cloudopsworks.co/github?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=github
+  [jobs]: https://cloudopsworks.co/jobs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=jobs
+  [hire]: https://cloudopsworks.co/hire?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=hire
+  [slack]: https://cloudopsworks.co/slack?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=slack
+  [linkedin]: https://cloudopsworks.co/linkedin?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=linkedin
+  [x]: https://cloudopsworks.co/x?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=x
+  [testimonial]: https://cloudopsworks.co/case-studies?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=testimonial
+  [office_hours]: https://cloudopsworks.co/office-hours?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=office_hours
+  [newsletter]: https://cloudopsworks.co/resources?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=newsletter
+  [email]: https://cloudopsworks.co/contact?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=email
+  [commercial_support]: https://cloudopsworks.co/services?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=commercial_support
+  [we_love_open_source]: https://cloudopsworks.co/open-source?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=we_love_open_source
+  [terraform_modules]: https://cloudopsworks.co/open-source?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=terraform_modules
+  [readme_header_img]: https://cloudopsworks.co/images/readme-header.png
+  [readme_header_link]: https://cloudopsworks.co/readme/header/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=readme_header_link
+  [readme_footer_img]: https://cloudopsworks.co/images/main-logo-footer.png
+  [readme_footer_link]: https://cloudopsworks.co/readme/footer/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=readme_footer_link
+  [readme_commercial_support_img]: https://cloudopsworks.co/readme/commercial-support/img
+  [readme_commercial_support_link]: https://cloudopsworks.co/readme/commercial-support/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-dynamodb-instance&utm_content=readme_commercial_support_link
+  [share_twitter]: https://x.com/intent/tweet/?text=Terraform+AWS+DynamoDB+Module&url=https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance
   [share_linkedin]: https://www.linkedin.com/shareArticle?mini=true&title=Terraform+AWS+DynamoDB+Module&url=https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance
   [share_reddit]: https://reddit.com/submit/?url=https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance
   [share_facebook]: https://facebook.com/sharer/sharer.php?u=https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance
-  [share_googleplus]: https://plus.google.com/share?url=https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance
   [share_email]: mailto:?subject=Terraform+AWS+DynamoDB+Module&body=https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance
-  [beacon]: https://ga-beacon.cloudops.works/G-7XWMFVFXZT/cloudopsworks/terraform-module-aws-dynamodb-instance?pixel&cs=github&cm=readme&an=terraform-module-aws-dynamodb-instance
+  [beacon]: https://ga-beacon.cloudospworks.co/G-QMZVYYN2VN/cloudopsworks/terraform-module-aws-dynamodb-instance?pixel&cs=github&cm=readme&an=terraform-module-aws-dynamodb-instance

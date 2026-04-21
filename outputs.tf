@@ -1,5 +1,5 @@
 ##
-# (c) 2021-2025
+# (c) 2021-2026
 #     Cloud Ops Works LLC - https://cloudops.works/
 #     Find us on:
 #       GitHub: https://github.com/cloudopsworks
@@ -8,9 +8,11 @@
 #
 
 output "dynamodb_table_id" {
-  value = module.this.dynamodb_table_id
+  description = "The name/ID of the DynamoDB table"
+  value       = module.this.dynamodb_table_id
 }
 
 output "dynamodb_table_arn" {
-  value = module.this.dynamodb_table_arn
+  description = "The ARN of the DynamoDB table"
+  value       = module.this.dynamodb_table_arn
 }

@@ -1,18 +1,26 @@
 name: Terraform AWS DynamoDB Module
 #logo: logo/logo.jpg
 
+badges:
+  - name: Latest Release
+    image: https://img.shields.io/github/release/cloudopsworks/terraform-module-aws-dynamodb-instance.svg?style=for-the-badge
+    url: https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance/releases/latest
+  - name: Last Updated
+    image: https://img.shields.io/github/last-commit/cloudopsworks/terraform-module-aws-dynamodb-instance.svg?style=for-the-badge
+    url: https://github.com/cloudopsworks/terraform-module-aws-dynamodb-instance/commits
+
 license: "APACHE2"
 
 copyrights:
   - name: "Cloud Ops Works LLC"
     url: "https://cloudops.works"
-    year: "2024"
+    year: "2021"
 
 github_repo: cloudopsworks/terraform-module-aws-dynamodb-instance
 
 description: |-
-  This Terraform module provisions an AWS DynamoDB table with various configurable options. 
-  It uses the `terraform-aws-modules/dynamodb-table/aws` module as its source and allows for 
+  This Terraform module provisions an AWS DynamoDB table with various configurable options.
+  It uses the `terraform-aws-modules/dynamodb-table/aws` module as its source and allows for
   extensive customization of the DynamoDB table's attributes, capacity, encryption, and more.
 
   Key features include:
@@ -22,316 +30,324 @@ description: |-
   - Optional deletion protection and point-in-time recovery.
   - Server-side encryption with optional KMS key.
   - Stream and TTL settings.
-  - Support for replica regions.
+  - Support for replica regions (global tables).
+  - Global and local secondary index management.
+  - S3 data import support.
   - Tagging support for resource management.
 
-  This module is designed to simplify the creation and management of DynamoDB tables in AWS, 
-  providing a robust and flexible solution for various use cases. with ResourceAccessMananger support.
+  This module is designed to simplify the creation and management of DynamoDB tables in AWS,
+  providing a robust and flexible solution for various use cases.
 
 # Introduction to the project
 introduction: |-
-  The Terraform AWS DynamoDB Module provides a streamlined way to create and manage DynamoDB tables in AWS. 
-  Built on top of the official AWS provider and terraform-aws-modules/dynamodb-table/aws module, it offers:
+  The Terraform AWS DynamoDB Module provides a streamlined way to create and manage DynamoDB
+  tables in AWS. Built on top of the official AWS provider (`hashicorp/aws ~> 6.35`) and the
+  community `terraform-aws-modules/dynamodb-table/aws` module, it offers:
 
   - Simplified table creation with sensible defaults
-  - Comprehensive configuration options through YAML structure
-  - Built-in support for autoscaling, encryption, and backup features
-  - Integration with AWS Resource Access Manager (RAM)
-  - Terragrunt-compatible design for multi-environment deployments
+  - Comprehensive configuration through a single structured `db` variable (YAML-friendly)
+  - Built-in support for autoscaling, encryption, backup, streams, and TTL
+  - Global tables via replica region configuration
+  - Terragrunt-compatible design for multi-environment deployments using the CloudOps Works hierarchy
 
 # How to use this project
 usage: |-
-  ### Module Variables
+  ### Terragrunt Scaffolding Workflow
 
-  - `name_prefix` (string): Prefix for the DynamoDB table name
-  - `name` (string): Explicit table name (overrides name_prefix if set)
-  - `db` (map): Main configuration object for the DynamoDB table
+  The recommended way to deploy this module is via Terragrunt scaffold, which generates
+  `terragrunt.hcl`, `inputs.yaml`, and `local-tags.json` from the module's boilerplate.
 
-  ### Complete Configuration Example
+  ```sh
+  # 1. Create and enter the target deployment directory
+  mkdir -p <environment>/<region>/<spoke>/dynamodb-instance
+  cd <environment>/<region>/<spoke>/dynamodb-instance
+
+  # 2. Scaffold the module
+  terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-dynamodb-instance
+
+  # 3. Edit inputs.yaml with deployment-specific values
+  vi inputs.yaml
+
+  # 4. Apply
+  terragrunt apply
+  ```
+
+  ### Generated `inputs.yaml`
+
+  After scaffolding, edit `inputs.yaml` with your table configuration:
 
   ```yaml
+  # name_prefix: "myapp"  # (Optional) Prefix for the DynamoDB table name. Default: ""
+  #                        # Ignored when `name` is set.
   name_prefix: "myapp"
+
+  # name: ""  # (Optional) Explicit table name. Overrides name_prefix. Default: ""
+  name: ""
+
+  # db:  # (Required) Main DynamoDB table configuration.
   db:
-    # Table attributes definition (required)
+    # attributes:  # (Required) Attribute definitions for the table.
+    #   - name: "id"    # (Required) Attribute name.
+    #     type: "S"     # (Required) "S" (String), "N" (Number), "B" (Binary).
     attributes:
-      - name: "id"        # Primary key attribute
-        type: "S"         # S = String, N = Number, B = Binary
-      - name: "sort_key"
-        type: "N"
+      - name: "id"
+        type: "S"
 
-    # Key schema (required)
-    hash_key: "id"        # Partition key
-    range_key: "sort_key" # Sort key (optional)
+    # hash_key: "id"  # (Required) Partition key attribute name.
+    hash_key: "id"
 
-    # Autoscaling configuration (optional)
+    # range_key: ""  # (Optional) Sort key attribute name. Default: null
+    range_key: ""
+
+    # autoscaling:  # (Optional) Autoscaling configuration.
     autoscaling:
-      enabled: true
+      enabled: false             # (Optional) Enable autoscaling. Default: false
       defaults:
-        min_capacity: 1
-        max_capacity: 10
+        min_capacity: 1          # (Optional) Minimum capacity. Default: 1
+        max_capacity: 10         # (Optional) Maximum capacity. Default: 10
+      indexes: {}                # (Optional) Per-index overrides. Default: {}
       read:
-        target_value: 70
+        target_value: 70         # (Optional) Read target utilization %. Default: 70
       write:
-        target_value: 70
+        target_value: 70         # (Optional) Write target utilization %. Default: 70
 
-    # Capacity settings (optional)
+    # capacity:  # (Optional) Table capacity settings.
     capacity:
-      billing_mode: "PROVISIONED"  # or "PAY_PER_REQUEST"
-      read: 5                      # Only for PROVISIONED
-      write: 5                     # Only for PROVISIONED
+      billing_mode: "PAY_PER_REQUEST"  # (Optional) "PAY_PER_REQUEST" or "PROVISIONED". Default: "PAY_PER_REQUEST"
+      read: 0                          # (Optional) Provisioned read units. Default: 0
+      write: 0                         # (Optional) Provisioned write units. Default: 0
 
-    # Security settings (optional)
-    deletion_protection: true
+    deletion_protection: false   # (Optional) Enable deletion protection. Default: false
+
+    # encryption:  # (Optional) Server-side encryption.
     encryption:
-      enabled: true
-      kms_key_arn: "arn:aws:kms:region:account:key/id"
+      enabled: false             # (Optional) Enable SSE. Default: false
+      kms_key_arn: ""            # (Optional) KMS key ARN. Default: null (AWS-managed key)
 
-    # Backup and recovery (optional)
+    # recovery:  # (Optional) Point-in-time recovery.
     recovery:
-      enabled: true
-      period_in_days: 35
+      enabled: false             # (Optional) Enable PITR. Default: false
+      period_in_days: -1         # (Optional) Recovery window in days. -1 = provider default.
 
-    # Multi-region settings (optional)
-    replicas:
-      - region_name: "us-west-2"
-        propagate_tags: true
-        point_in_time_recovery: true
+    replicas: []                 # (Optional) Replica regions for global tables. Default: []
+    # replicas:
+    #   - region_name: "us-west-2"
+    #     propagate_tags: false
+    #     point_in_time_recovery: false
+    #     kms_key_arn: ""
 
-    # Streaming configuration (optional)
+    # stream:  # (Optional) DynamoDB Streams configuration.
     stream:
-      enabled: true
-      view_type: "NEW_AND_OLD_IMAGES"
+      enabled: false             # (Optional) Enable streams. Default: false
+      view_type: "NEW_AND_OLD_IMAGES"  # (Optional) "NEW_IMAGE", "OLD_IMAGE", "NEW_AND_OLD_IMAGES", "KEYS_ONLY"
 
-    # Storage class (optional)
-    table_class: "STANDARD"
+    table_class: "STANDARD"      # (Optional) "STANDARD" or "STANDARD_INFREQUENT_ACCESS". Default: null
 
-    # Time-To-Live settings (optional)
+    # ttl:  # (Optional) Time-To-Live configuration.
     ttl:
-      enabled: true
-      attribute_name: "expires_at"
+      enabled: false             # (Optional) Enable TTL. Default: false
+      attribute_name: "expires_at"  # (Optional) TTL attribute (epoch seconds). Default: null
 
-    # Secondary indexes (optional)
-    global_secondary_indexes:
-      - name: "gsi1"
-        hash_key: "gsi_key"
-        projection_type: "ALL"
-        read_capacity: 5
-        write_capacity: 5
+    global_secondary_indexes: [] # (Optional) GSI definitions. Default: []
+    # global_secondary_indexes:
+    #   - name: "gsi_name"
+    #     hash_key: "gsi_hash_key"
+    #     range_key: ""
+    #     read_capacity: 0
+    #     write_capacity: 0
+    #     projection_type: "ALL"   # "ALL", "KEYS_ONLY", "INCLUDE"
+    #     non_key_attributes: []
 
-    local_secondary_indexes:
-      - name: "lsi1"
-        range_key: "lsi_key"
-        projection_type: "KEYS_ONLY"
+    ignore_changes_global_secondary_index: false  # (Optional) Ignore GSI lifecycle changes. Default: false
 
-    # Import configuration (optional)
-    import_table:
-      input_format: "CSV"
-      bucket: "my-import-bucket"
-      key_prefix: "data/"
+    local_secondary_indexes: []  # (Optional) LSI definitions. Default: []
+    # local_secondary_indexes:
+    #   - name: "lsi_name"
+    #     range_key: "lsi_range_key"
+    #     projection_type: "ALL"
+    #     non_key_attributes: []
+
+    # import_table:  # (Optional) S3 data import configuration.
+    #   input_format: "CSV"              # (Required) "CSV", "DYNAMODB_JSON", "ION"
+    #   input_compression_type: "NONE"  # (Optional) "GZIP", "BZIP2", "ZSTD", "NONE"
+    #   bucket: "my-import-bucket"      # (Required) S3 bucket name
+    #   key_prefix: ""                  # (Optional) S3 key prefix
+    #   input_format_options:
+    #     csv:
+    #       delimiter: ","
+    #       header_list: []
   ```
 
-  ### Terraform Usage
+  ### Generated `terragrunt.hcl`
+
+  The scaffold generates the following `terragrunt.hcl` (shown for `kms_enabled: false`):
 
   ```hcl
-  module "dynamodb_table" {
-    source = "cloudopsworks/terraform-module-aws-dynamodb-instance"
+  locals {
+    local_vars  = yamldecode(file("./inputs.yaml"))
+    spoke_vars  = yamldecode(file(find_in_parent_folders("spoke-inputs.yaml")))
+    region_vars = yamldecode(file(find_in_parent_folders("region-inputs.yaml")))
+    env_vars    = yamldecode(file(find_in_parent_folders("env-inputs.yaml")))
+    global_vars = yamldecode(file(find_in_parent_folders("global-inputs.yaml")))
 
-    name_prefix = "myapp"
-    db = {
-      attributes = [
-        {
-          name = "id"
-          type = "S"
-        }
-      ]
-      hash_key = "id"
-      encryption = {
-        enabled = true
-      }
-    }
+    local_tags  = jsondecode(file("./local-tags.json"))
+    spoke_tags  = jsondecode(file(find_in_parent_folders("spoke-tags.json")))
+    region_tags = jsondecode(file(find_in_parent_folders("region-tags.json")))
+    env_tags    = jsondecode(file(find_in_parent_folders("env-tags.json")))
+    global_tags = jsondecode(file(find_in_parent_folders("global-tags.json")))
+
+    tags = merge(
+      local.global_tags,
+      local.env_tags,
+      local.region_tags,
+      local.spoke_tags,
+      local.local_tags
+    )
   }
-  ```
 
-  ### Terragrunt Usage
-
-  ```hcl
-  # terragrunt.hcl
   include "root" {
     path = find_in_parent_folders()
   }
 
   terraform {
-    source = "cloudopsworks/terraform-module-aws-dynamodb-instance//?ref=v1.0.0"
+    source = "github.com/cloudopsworks/terraform-module-aws-dynamodb-instance//?ref=<version>"
   }
 
   inputs = {
-    name_prefix = "myapp"
-    db = {
-      attributes = [
-        {
-          name = "id"
-          type = "S"
-        }
-      ]
-      hash_key = "id"
-      encryption = {
-        enabled = true
-      }
-    }
+    is_hub     = false
+    org        = local.env_vars.org
+    spoke_def  = local.spoke_vars.spoke
+    name_prefix = local.local_vars.name_prefix
+    name        = try(local.local_vars.name, "")
+    db          = try(local.local_vars.db, {})
+    extra_tags  = local.tags
   }
   ```
+
+  ### Module Inputs Summary
+
+  | Variable | Type | Required | Description |
+  |----------|------|----------|-------------|
+  | `name_prefix` | `string` | Optional | Prefix for the DynamoDB table name |
+  | `name` | `string` | Optional | Explicit table name (overrides `name_prefix`) |
+  | `db` | `any` | Optional | Full DynamoDB table configuration object |
+  | `db.attributes` | `list` | Required | Attribute definitions (name + type) |
+  | `db.hash_key` | `string` | Required | Partition key attribute name |
+  | `db.range_key` | `string` | Optional | Sort key attribute name |
+  | `db.autoscaling` | `object` | Optional | Autoscaling configuration |
+  | `db.capacity` | `object` | Optional | Billing mode and capacity units |
+  | `db.deletion_protection` | `bool` | Optional | Deletion protection toggle |
+  | `db.encryption` | `object` | Optional | SSE with optional KMS key |
+  | `db.recovery` | `object` | Optional | Point-in-time recovery settings |
+  | `db.replicas` | `list` | Optional | Replica regions for global tables |
+  | `db.stream` | `object` | Optional | DynamoDB Streams configuration |
+  | `db.table_class` | `string` | Optional | Storage class (`STANDARD` / `STANDARD_INFREQUENT_ACCESS`) |
+  | `db.ttl` | `object` | Optional | Time-To-Live configuration |
+  | `db.global_secondary_indexes` | `list` | Optional | GSI definitions |
+  | `db.local_secondary_indexes` | `list` | Optional | LSI definitions |
+  | `db.import_table` | `object` | Optional | S3 data import configuration |
 
 # Example usage
 examples: |-
-  ### Basic Table
-  ```hcl
-  db = {
-    attributes = [
-      {
-        name = "user_id"
-        type = "S"
-      }
-    ]
-    hash_key = "user_id"
-  }
+  ### Basic Table (pay-per-request, single hash key)
+
+  ```yaml
+  name_prefix: "myapp"
+  db:
+    attributes:
+      - name: "user_id"
+        type: "S"
+    hash_key: "user_id"
+    capacity:
+      billing_mode: "PAY_PER_REQUEST"
   ```
 
   ### Table with GSI and Autoscaling
-  ```hcl
-  db = {
-    attributes = [
-      {
-        name = "user_id"
-        type = "S"
-      },
-      {
-        name = "email"
-        type = "S"
-      }
-    ]
-    hash_key = "user_id"
-    global_secondary_indexes = [
-      {
-        name = "email-index"
-        hash_key = "email"
-        projection_type = "ALL"
-      }
-    ]
-    autoscaling = {
-      enabled = true
-      read = {
-        min_capacity = 1
-        max_capacity = 10
-      }
-    }
-  }
-  ```
 
-  ### Full YAML Configuration Reference
   ```yaml
+  name_prefix: "myapp"
   db:
     attributes:
-      - name: "attribute_name1"
-        type: "S" # "S" for String, "N" for Number, "B" for Binary
-      - name: "attribute_name2"
+      - name: "user_id"
         type: "S"
-    hash_key: "hash_key_name" # Required
-    range_key: "range_key_name" # Optional
+      - name: "email"
+        type: "S"
+    hash_key: "user_id"
+    capacity:
+      billing_mode: "PROVISIONED"
+      read: 5
+      write: 5
+    global_secondary_indexes:
+      - name: "email-index"
+        hash_key: "email"
+        projection_type: "ALL"
+        read_capacity: 5
+        write_capacity: 5
     autoscaling:
       enabled: true
       defaults:
         min_capacity: 1
-        max_capacity: 10
-      indexes: {}
+        max_capacity: 50
       read:
         target_value: 70
       write:
         target_value: 70
-    capacity:
-      billing_mode: "PAY_PER_REQUEST"
-      write: 0
-      read: 0
-    deletion_protection: false
+  ```
+
+  ### Encrypted Global Table with Streams
+
+  ```yaml
+  name_prefix: "myapp"
+  db:
+    attributes:
+      - name: "pk"
+        type: "S"
+      - name: "sk"
+        type: "S"
+    hash_key: "pk"
+    range_key: "sk"
+    deletion_protection: true
     encryption:
-      enabled: false
-      kms_key_arn: "arn:aws:kms:region:account-id:key/key-id"
+      enabled: true
+      kms_key_arn: "arn:aws:kms:us-east-1:123456789012:key/mrk-abc123"
     recovery:
-      enabled: false
-      period_in_days: -1
+      enabled: true
+      period_in_days: 35
+    stream:
+      enabled: true
+      view_type: "NEW_AND_OLD_IMAGES"
     replicas:
       - region_name: "us-west-2"
-        propagate_tags: false
-        point_in_time_recovery: false
-        kms_key_arn: null
-    stream:
-      enabled: false
-      view_type: "NEW_AND_OLD_IMAGES"
-    table_class: "STANDARD"
+        propagate_tags: true
+        point_in_time_recovery: true
     ttl:
-      enabled: false
-      attribute_name: "ttl"
-    global_secondary_indexes:
-      - name: "gsi_name"
-        hash_key: "gsi_hash_key"
-        range_key: "gsi_range_key"
-        read_capacity: 0
-        write_capacity: 0
-        projection_type: "ALL"
-        non_key_attributes:
-          - "attribute_name1"
-          - "attribute_name2"
-    ignore_changes_global_secondary_index: false
-    local_secondary_indexes:
-      - name: "lsi_name"
-        range_key: "lsi_range_key"
-        projection_type: "ALL"
-        non_key_attributes:
-          - "attribute_name1"
-    import_table:
-      input_format: "CSV"
-      input_compression_type: "NONE"
-      bucket: "s3-bucket-name"
-      key_prefix: "path/to/data"
-      input_format_options:
-        csv:
-          delimiter: ","
-          header_list: []
+      enabled: true
+      attribute_name: "expires_at"
   ```
 
 # How to get started quickly
 quickstart: |-
-  1. Add the module to your Terraform configuration:
-     ```hcl
-     module "dynamodb" {
-       source = "cloudopsworks/terraform-module-aws-dynamodb-instance"
-       version = "1.0.0"
-
-       name_prefix = "myapp"
-       db = {
-         attributes = [
-           {
-             name = "id"
-             type = "S"
-           }
-         ]
-         hash_key = "id"
-       }
-     }
+  1. Create and enter the target deployment directory:
+     ```bash
+     mkdir -p production/us-east-1/001/dynamodb-instance
+     cd production/us-east-1/001/dynamodb-instance
      ```
 
-  2. Initialize Terraform:
+  2. Scaffold the module:
      ```bash
-     terraform init
+     terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-dynamodb-instance
      ```
 
-  3. Review the plan:
+  3. Edit `inputs.yaml` with your configuration:
      ```bash
-     terraform plan
+     vi inputs.yaml
      ```
 
-  4. Apply the configuration:
+  4. Initialize and apply:
      ```bash
-     terraform apply
+     terragrunt init
+     terragrunt plan
+     terragrunt apply
      ```
 
 include:
