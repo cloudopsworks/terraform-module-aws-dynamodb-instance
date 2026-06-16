@@ -14,22 +14,26 @@ variables:
     description: "Is this a hub configuration?"
     type: bool
     default: false
+    confirm: true
   - name: tags
     order: 1
     description: "Tags"
     type: map
     default: {}
+    confirm: true
   # End - Generic Boilerplate Variables Setup
   - name: kms_enabled
     order: 2
     description: "Enable KMS module dependency. Defaults to false."
     type: bool
     default: false
+    confirm: true
   - name: kms_path
     order: 3
     description: "Path to KMS module."
     type: string
     default: "../kms"
+    confirm: true
 
 hooks:
   after:
