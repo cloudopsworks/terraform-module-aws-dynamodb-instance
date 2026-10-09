@@ -13,7 +13,7 @@ locals {
 
 module "this" {
   source                                = "terraform-aws-modules/dynamodb-table/aws"
-  version                               = "~> 4.0"
+  version                               = "~> 5.0"
   create_table                          = true
   name                                  = local.table_name
   attributes                            = try(var.db.attributes, [])
