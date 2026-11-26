@@ -287,3 +287,157 @@ run "import_table_from_s3" {
     error_message = "CSV format options were not passed through."
   }
 }
+
+# Case 37: encryption without a key ARN uses the AWS managed key.
+run "encryption_with_aws_managed_key" {
+  command = plan
+
+  variables {
+    db = {
+      attributes = [{ name = "id", type = "S" }]
+      hash_key   = "id"
+      encryption = { enabled = true }
+    }
+  }
+
+  assert {
+    condition     = local.table.server_side_encryption_enabled == true && local.table.server_side_encryption_kms_key_arn == null
+    error_message = "Encryption without kms_key_arn must leave the key ARN null."
+  }
+}
+
+# Case 38: PITR without a window leaves the period null (AWS default of 35 days).
+run "point_in_time_recovery_default_window" {
+  command = plan
+
+  variables {
+    db = {
+      attributes = [{ name = "id", type = "S" }]
+      hash_key   = "id"
+      recovery   = { enabled = true }
+    }
+  }
+
+  assert {
+    condition     = local.table.point_in_time_recovery_enabled == true && local.table.point_in_time_recovery_period_in_days == null
+    error_message = "PITR without period_in_days must leave the period null."
+  }
+}
+
+# Case 39: replica attributes reach the planned table resource.
+run "replica_attributes_reach_table" {
+  command = plan
+
+  variables {
+    db = {
+      attributes = [{ name = "id", type = "S" }]
+      hash_key   = "id"
+      stream     = { enabled = true, view_type = "NEW_AND_OLD_IMAGES" }
+      replicas = {
+        regions = [
+          {
+            region_name                 = "us-west-2"
+            propagate_tags              = true
+            point_in_time_recovery      = true
+            deletion_protection_enabled = true
+            consistency_mode            = "STRONG"
+            kms_key_arn                 = "arn:aws:kms:us-west-2:123456789012:key/1234abcd-12ab-34cd-56ef-1234567890ab"
+          },
+        ]
+      }
+    }
+  }
+
+  assert {
+    condition = alltrue([
+      module.this.dynamodb_table_replicas["us-west-2"].propagate_tags == true,
+      module.this.dynamodb_table_replicas["us-west-2"].point_in_time_recovery == true,
+      module.this.dynamodb_table_replicas["us-west-2"].deletion_protection_enabled == true,
+      module.this.dynamodb_table_replicas["us-west-2"].consistency_mode == "STRONG",
+    ])
+    error_message = "Replica attributes were not passed to the table resource."
+  }
+
+  assert {
+    condition     = module.this.dynamodb_table_replicas["us-west-2"].kms_key_arn == "arn:aws:kms:us-west-2:123456789012:key/1234abcd-12ab-34cd-56ef-1234567890ab"
+    error_message = "Replica KMS key was not passed to the table resource."
+  }
+}
+
+# Case 40: GSI on-demand and warm throughput settings are passed through.
+run "gsi_throughput_settings" {
+  command = plan
+
+  variables {
+    db = {
+      attributes = [
+        { name = "id", type = "S" },
+        { name = "email", type = "S" },
+      ]
+      hash_key = "id"
+      global_secondary_indexes = [
+        {
+          name                 = "email-index"
+          hash_key             = "email"
+          projection_type      = "KEYS_ONLY"
+          on_demand_throughput = { max_read_request_units = 100, max_write_request_units = 50 }
+          warm_throughput      = { read_units_per_second = 12000, write_units_per_second = 4000 }
+        },
+      ]
+    }
+  }
+
+  assert {
+    condition     = local.table.global_secondary_indexes[0].on_demand_throughput.max_read_request_units == 100
+    error_message = "GSI on_demand_throughput was not passed through."
+  }
+
+  assert {
+    condition     = local.table.global_secondary_indexes[0].warm_throughput.write_units_per_second == 4000
+    error_message = "GSI warm_throughput was not passed through."
+  }
+}
+
+# Case 41: minimal S3 import with DynamoDB JSON and no format options.
+run "import_table_dynamodb_json_minimal" {
+  command = plan
+
+  variables {
+    db = {
+      attributes = [{ name = "id", type = "S" }]
+      hash_key   = "id"
+      import_table = {
+        input_format = "DYNAMODB_JSON"
+        bucket       = "my-import-bucket"
+      }
+    }
+  }
+
+  assert {
+    condition     = local.table.import_table.input_format == "DYNAMODB_JSON" && !can(local.table.import_table.input_format_options)
+    error_message = "Minimal import_table must pass through without format options."
+  }
+}
+
+# Case 42: stream with KEYS_ONLY view type, TTL disabled.
+run "stream_keys_only" {
+  command = plan
+
+  variables {
+    db = {
+      attributes = [{ name = "id", type = "S" }]
+      hash_key   = "id"
+      stream     = { enabled = true, view_type = "KEYS_ONLY" }
+    }
+  }
+
+  assert {
+    condition     = local.table.stream_enabled == true && local.table.stream_view_type == "KEYS_ONLY"
+    error_message = "KEYS_ONLY stream was not passed through."
+  }
+
+  assert {
+    condition     = local.table.ttl_enabled == false && local.table.ttl_attribute_name == null
+    error_message = "TTL must stay disabled when not configured."
+  }
+}

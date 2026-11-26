@@ -144,8 +144,8 @@ usage: |-
     #
     # capacity:                     # (Optional) Capacity settings. Default: on-demand billing.
       # billing_mode: "PAY_PER_REQUEST"  # (Optional) Billing mode: PAY_PER_REQUEST | PROVISIONED. Default: PAY_PER_REQUEST.
-      # read: 5                     # (Optional) Provisioned read capacity units. Default: 0.
-      # write: 5                    # (Optional) Provisioned write capacity units. Default: 0.
+      # read: 5                     # (Optional) Read capacity units, at least 1 with PROVISIONED. Default: 0.
+      # write: 5                    # (Optional) Write capacity units, at least 1 with PROVISIONED. Default: 0.
     #
     ## Application Auto Scaling for PROVISIONED tables and their GSIs.
     # The defaults map is merged with scale_in_cooldown 0, scale_out_cooldown 0 and target_value 70,
@@ -332,7 +332,7 @@ usage: |-
   | `table_class` | `string` | no | `null` (`STANDARD`) | `STANDARD` or `STANDARD_INFREQUENT_ACCESS`. |
   | `deletion_protection` | `bool` | no | `true` | Deletion protection. |
   | `capacity.billing_mode` | `string` | no | `PAY_PER_REQUEST` | `PAY_PER_REQUEST` or `PROVISIONED`. |
-  | `capacity.read` / `capacity.write` | `number` | no | `0` | Provisioned capacity; also the autoscaling minimum. |
+  | `capacity.read` / `capacity.write` | `number` | no | `0` | Provisioned capacity, at least 1 each with `PROVISIONED`; also the autoscaling minimum. |
   | `autoscaling.enabled` | `bool` | no | `false` | Enable Application Auto Scaling (provisioned tables). |
   | `autoscaling.defaults` | `map` | no | `{}` | `scale_in_cooldown`, `scale_out_cooldown`, `target_value`, merged with `0` / `0` / `70`. |
   | `autoscaling.read` / `autoscaling.write` | `map` | no | `{}` | `max_capacity` (required) plus optional policy overrides. |
@@ -364,12 +364,15 @@ usage: |-
   `.github/workflows/module-tests.yml`. They use `command = plan` with a mocked AWS provider,
   so no credentials are needed.
 
+  42 cases in 5 suites:
+
   | Suite | Cases |
   |-------|-------|
-  | `tests/naming.tftest.hcl` | Prefix-based name, explicit name, region/spoke naming, tag merge, output wiring, scaffolded `inputs.yaml` |
-  | `tests/capacity.tftest.hcl` | Defaults, deletion protection off, provisioned composite key, partial and missing autoscaling defaults, GSI autoscaling, legacy autoscaling keys |
-  | `tests/features.tftest.hcl` | Customer managed KMS key, PITR window, streams/TTL/table class, replicas (`regions` form, plain list, empty list, empty object), GSI/LSI, S3 import |
+  | `tests/naming.tftest.hcl` | Prefix-based name, explicit name (case kept), region/spoke naming, hyphenated environment type, `ap-southeast-2` region code, empty name and prefix, tag merge and override, output wiring, scaffolded `inputs.yaml` |
+  | `tests/capacity.tftest.hcl` | Defaults, deletion protection off, provisioned composite key, on-demand without capacity values, partial, missing and full autoscaling defaults, GSI autoscaling, legacy autoscaling keys and their precedence |
+  | `tests/features.tftest.hcl` | Customer and AWS managed KMS keys, PITR with and without a window, streams (incl. `KEYS_ONLY`)/TTL/table class, replicas (`regions` form, plain list, empty list, empty object, attributes reaching the table), GSI/LSI, GSI throughput settings, CSV and minimal DynamoDB JSON S3 imports |
   | `tests/validation.tftest.hcl` | `spoke_def` length validation |
+  | `tests/variants.tftest.hcl` | Which upstream table resource is planned: standard, autoscaled, autoscaled with GSI drift ignored, GSI drift ignored without autoscaling |
 
   ```sh
   tofu init -backend=false -test-directory=tests
